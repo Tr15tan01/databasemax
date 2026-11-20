@@ -1,0 +1,15 @@
+# Development / test VM reverse proxy (DMX_ENV=development): plain HTTP on port 80.
+:80 {
+	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
+	@blocked path /internal/*
+	respond @blocked 404
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

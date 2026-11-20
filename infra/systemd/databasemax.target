@@ -1,0 +1,9 @@
+# All DatabaseMax control-plane services:  systemctl {start|stop|restart} databasemax.target
+# Customer databases (dmx-pg@<id>.service) are separate and keep running when this target stops.
+[Unit]
+Description=DatabaseMax
+Wants=dmx-host-agent.service dmx-provisioner.service dmx-internal-api.service dmx-api.service dmx-worker.service dmx-gateway.service dmx-web.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

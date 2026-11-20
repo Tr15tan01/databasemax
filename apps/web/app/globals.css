@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   DatabaseMax design tokens. Neutral, warm-gray surfaces; ink-colored primary
+   actions; one blue accent (shared with chart series 1). Status colors are
+   reserved for state and always paired with an icon/label.
+   --------------------------------------------------------------------------- */
+:root {
+  --background: #f9f9f7;
+  --surface: #ffffff;
+  --surface-2: #f4f4f1;
+  --surface-3: #ecebe7;
+  --foreground: #0b0b0b;
+  --muted: #52514e;
+  --subtle: #898781;
+  --border: #e4e3dd;
+  --border-strong: #d4d3cc;
+  --ring: #2a78d6;
+  --primary: #111110;
+  --primary-foreground: #ffffff;
+  --accent: #2a78d6;
+  --accent-foreground: #ffffff;
+  --accent-soft: #e8f1fc;
+  --good: #0a7d0a;
+  --good-soft: #e7f5e7;
+  --warning: #9a6700;
+  --warning-soft: #fdf3dc;
+  --serious: #b4501f;
+  --critical: #c52f2f;
+  --critical-soft: #fbeaea;
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #898781;
+  --shadow-color: 30 30 20;
+}
+
+.dark {
+  --background: #0d0d0d;
+  --surface: #151514;
+  --surface-2: #1c1c1b;
+  --surface-3: #262625;
+  --foreground: #f5f5f3;
+  --muted: #c3c2b7;
+  --subtle: #898781;
+  --border: #2a2a28;
+  --border-strong: #3a3a37;
+  --ring: #3987e5;
+  --primary: #f5f5f3;
+  --primary-foreground: #0d0d0d;
+  --accent: #3987e5;
+  --accent-foreground: #ffffff;
+  --accent-soft: #14253a;
+  --good: #0ca30c;
+  --good-soft: #10260f;
+  --warning: #fab219;
+  --warning-soft: #2d2208;
+  --serious: #ec835a;
+  --critical: #e66767;
+  --critical-soft: #331616;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #898781;
+  --shadow-color: 0 0 0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-critical-soft: var(--critical-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow-soft: 0 1px 2px rgb(var(--shadow-color) / 0.04), 0 4px 16px -4px rgb(var(--shadow-color) / 0.08);
+  --shadow-pop: 0 8px 30px -6px rgb(var(--shadow-color) / 0.18), 0 2px 6px rgb(var(--shadow-color) / 0.06);
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-pop-in: pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.98) } to { opacity: 1; transform: none } }
+
+@layer base {
+  * { border-color: var(--border); }
+  html { -webkit-text-size-adjust: 100%; text-rendering: optimizeLegibility; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: color-mix(in oklab, var(--accent) 25%, transparent); }
+  code, kbd, pre, .font-mono { font-family: var(--font-mono); font-feature-settings: normal; }
+}
+
+@layer components {
+  .tabular { font-variant-numeric: tabular-nums; }
+  .text-balance { text-wrap: balance; }
+  .hairline-grid {
+    background-image: linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at top, black 30%, transparent 75%);
+  }
+  /* shiki dual theme */
+  .shiki, .shiki span { background-color: transparent !important; }
+  .dark .shiki, .dark .shiki span { color: var(--shiki-dark) !important; }
+  .prose-docs h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -0.01em; margin: 2.25rem 0 0.75rem; scroll-margin-top: 5rem; }
+  .prose-docs h3 { font-size: 1.05rem; font-weight: 600; margin: 1.75rem 0 0.5rem; scroll-margin-top: 5rem; }
+  .prose-docs p, .prose-docs li { color: var(--muted); line-height: 1.75; font-size: 0.95rem; }
+  .prose-docs p { margin: 0.75rem 0; }
+  .prose-docs ul { list-style: disc; padding-left: 1.25rem; margin: 0.75rem 0; }
+  .prose-docs ol { list-style: decimal; padding-left: 1.25rem; margin: 0.75rem 0; }
+  .prose-docs a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  .prose-docs strong { color: var(--foreground); font-weight: 600; }
+  .prose-docs :not(pre) > code { font-size: 0.85em; background: var(--surface-2); border: 1px solid var(--border); padding: 0.1rem 0.35rem; border-radius: 5px; color: var(--foreground); }
+  .prose-docs table { width: 100%; font-size: 0.875rem; margin: 1rem 0; border-collapse: collapse; }
+  .prose-docs th { text-align: left; font-weight: 600; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .prose-docs td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

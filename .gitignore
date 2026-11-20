@@ -1,0 +1,31 @@
+# secrets and local state
+.env
+.env.*
+.env.example
+.dev/
+*.pem
+*.key
+!infra/**/*.example.key
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# os/editor
+.DS_Store
+.idea/
+.vscode/

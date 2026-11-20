@@ -1,0 +1,47 @@
+# Production reverse proxy (installed as /etc/caddy/Caddyfile by deploy.sh). Caddy obtains and renews
+# the HTTPS certificate for {$DMX_DOMAIN}; DMX_DOMAIN and DMX_ACME_EMAIL come from
+# /etc/databasemax/env/caddy.env via the caddy.service drop-in.
+# PostgreSQL traffic does NOT go through Caddy: it goes to the dmx-gateway on port 5432.
+{
+	email {$DMX_ACME_EMAIL}
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$DMX_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+	# Internal and development endpoints are never exposed.
+	@blocked path /internal/* /api/v1/dev/*
+	respond @blocked 404
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+	log {
+		output file /var/log/caddy/databasemax-access.log {
+			roll_size 50MiB
+			roll_keep 10
+		}
+		format json
+	}
+}
+
+www.{$DMX_DOMAIN} {
+	redir https://{$DMX_DOMAIN}{uri} permanent
+}

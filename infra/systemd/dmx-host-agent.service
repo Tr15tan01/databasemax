@@ -1,0 +1,40 @@
+# The only root service: per-database filesystems (hard storage limits), system users and the
+# dmx-pg@ units. Reachable only through a unix socket owned by root and the provisioner's group.
+[Unit]
+Description=DatabaseMax host agent
+After=local-fs.target
+Before=dmx-provisioner.service
+RequiresMountsFor=/var/lib/databasemax/data-plane
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStartPre=-+/sbin/modprobe loop
+ExecStart=/usr/bin/python3 /opt/databasemax/apps/provisioner/dmx_host_agent/agent.py
+EnvironmentFile=/etc/databasemax/env/agent.env
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+Environment=DMX_STORAGE_ROOT=/var/lib/databasemax/data-plane
+Environment=DMX_AGENT_SOCKET=/run/databasemax/agent.sock
+Environment=DMX_AGENT_SOCKET_GROUP=dmx-prov
+RuntimeDirectory=databasemax
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+Restart=always
+RestartSec=2
+# Restarting the agent must not touch its helpers or the customer databases (separate units).
+KillMode=process
+MemoryMax=512M
+# Root, but still sandboxed: /usr is read-only, no home directories, no network.
+NoNewPrivileges=yes
+ProtectSystem=yes
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

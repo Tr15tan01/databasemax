@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Operator CLI: runs `python -m app.cli …` as the API's user, with the API's environment and
+# sandbox, in a transient systemd unit. Installed as /usr/local/bin/dmx-admin.
+#
+#   sudo dmx-admin grant-admin --email you@example.com --reason "initial operator"
+#   sudo DMX_USER_PASSWORD='…' dmx-admin create-user --email t@example.com --name "Tester"
+#   sudo DMX_HOST_TOKEN='…' dmx-admin register-host --name worker-2 --endpoint http://10.0.1.12:8090 --region …
+set -euo pipefail
+[ "$(id -u)" = 0 ] || { echo "run with sudo" >&2; exit 1; }
+args=(--quiet --pipe --wait --collect --uid=dmx-api --gid=dmx-api
+      --working-directory=/opt/databasemax/apps/api
+      -p EnvironmentFile=/etc/databasemax/env/api.env
+      -p NoNewPrivileges=yes -p ProtectSystem=strict -p ProtectHome=yes -p PrivateTmp=yes
+      -E PYTHONDONTWRITEBYTECODE=1)
+# Only these variables are passed through from the caller — by name, so the values never appear
+# on a command line (systemd-run copies them from its own environment).
+for v in DMX_USER_PASSWORD DMX_HOST_TOKEN; do
+  if [ -n "${!v:-}" ]; then export "$v"; args+=(-E "$v"); fi
+done
+exec systemd-run "${args[@]}" /opt/databasemax/apps/api/.venv/bin/python -m app.cli "$@"

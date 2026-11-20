@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.8.17"
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    env:
+      DMX_TEST_PG_ADMIN: postgresql://postgres:postgres@127.0.0.1:55432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "${{ env.UV_VERSION }}" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - name: PostgreSQL and Redis for the tests
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-16 redis-server
+          sudo infra/scripts/dev-services.sh
+      - name: Install
+        run: |
+          for d in api provisioner gateway; do (cd apps/$d && uv sync --frozen); done
+      - name: Lint and type-check
+        run: |
+          for d in api provisioner gateway; do (cd apps/$d && uv run ruff check . && uv run ruff format --check .); done
+          (cd apps/api && uv run mypy app)
+          (cd apps/provisioner && uv run mypy dmx_provisioner dmx_host_agent --ignore-missing-imports)
+          (cd apps/gateway && uv run mypy dmx_gateway)
+          python3 -m py_compile apps/provisioner/dmx_host_agent/agent.py infra/scripts/render-env.py  # system python
+          bash -n infra/scripts/*.sh infra/scripts/dmx-admin
+      - name: OpenAPI schema is up to date
+        run: |
+          cd apps/api && uv run python -c "import json; from app.main import app; json.dump(app.openapi(), open('/tmp/openapi.json','w'), indent=1)"
+          diff -q /tmp/openapi.json ../../packages/shared-types/openapi.json
+      - name: Unit tests (data-plane tests run in the host job)
+        run: |
+          (cd apps/provisioner && uv run pytest)
+          (cd apps/gateway && uv run pytest)
+          (cd apps/api && uv run pytest -p no:logging -m "not integration" --cov=app --cov-report=term-missing:skip-covered)
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.28.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @databasemax/web typecheck
+      - run: pnpm --filter @databasemax/web lint
+      - run: pnpm --filter @databasemax/web test
+      - run: pnpm --filter @databasemax/web build
+
+  # The whole platform installed on the runner exactly like on a VPS (systemd, no containers),
+  # then data-plane, integration and browser tests against it.
+  host:
+    needs: [backend, web]
+    runs-on: ubuntu-24.04
+    env:
+      UV_PYTHON_INSTALL_DIR: /opt/databasemax-python
+      DMX_TEST_PG_ADMIN: postgresql://postgres:postgres@127.0.0.1:55432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the platform (host-setup, init-env --dev, deploy)
+        run: |
+          sudo mkdir -p /opt/databasemax && sudo cp -a . /opt/databasemax/
+          sudo /opt/databasemax/infra/scripts/host-setup.sh --no-ssh-hardening
+          sudo /opt/databasemax/infra/scripts/init-env.sh --dev
+          sudo /opt/databasemax/infra/scripts/deploy.sh local
+      - name: Provisioner data-plane tests (dir and loop storage)
+        working-directory: /opt/databasemax/apps/provisioner
+        run: |
+          sudo -E env PATH="$PATH" /usr/local/bin/uv sync --frozen
+          sudo -E env PATH="$PATH" DMX_HOST_TESTS=1 /usr/local/bin/uv run --frozen pytest -rs
+      - name: API integration tests against the deployed provisioner
+        working-directory: /opt/databasemax/apps/api
+        run: |
+          sudo /opt/databasemax/infra/scripts/dev-services.sh
+          sudo /opt/databasemax/infra/scripts/dev-certs.sh /opt/databasemax/.dev/certs
+          TOKEN="$(sudo sed -n "s/^PROVISIONER_TOKEN=//p" /etc/databasemax/.env)"
+          sudo -E env PATH="$PATH" /usr/local/bin/uv sync --frozen
+          (cd ../gateway && sudo -E env PATH="$PATH" /usr/local/bin/uv sync --frozen)
+          sudo -E env PATH="$PATH" PROVISIONER_TOKEN="$TOKEN" /usr/local/bin/uv run --frozen pytest -p no:logging -m integration -rs
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.28.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Playwright against the deployed stack
+        env: { E2E_BASE_URL: "http://localhost", E2E_GATEWAY_ADDR: "127.0.0.1" }
+        run: |
+          pnpm install --frozen-lockfile && pnpm --filter @databasemax/web exec playwright install --with-deps chromium
+          pnpm --filter @databasemax/web test:e2e
+      - if: failure()
+        run: sudo journalctl -u 'dmx-*' -u caddy --no-pager -n 300
+
+  security:
+    runs-on: ubuntu-24.04
+    permissions: { contents: read, security-events: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.28.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+      - name: Python dependency audit
+        run: for d in api provisioner gateway; do (cd apps/$d && uv export --frozen --no-dev --no-hashes --no-emit-project --format requirements-txt > /tmp/req-$d.txt && uvx pip-audit --no-deps --disable-pip --strict -r /tmp/req-$d.txt); done
+      - name: Node dependency audit
+        run: pnpm install --frozen-lockfile && pnpm audit --prod --audit-level high
+      - name: Bandit
+        run: uvx bandit -q -r apps/api/app apps/provisioner/dmx_provisioner apps/provisioner/dmx_host_agent apps/gateway/dmx_gateway -ll
+      - name: Semgrep
+        run: uvx semgrep scan --config p/python --config p/typescript --config p/secrets --config p/bash --error --quiet
+      - name: Trivy (lockfiles and configuration)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"

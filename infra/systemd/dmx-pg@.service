@@ -1,0 +1,63 @@
+# One customer database cluster. Created, configured and removed only by the host agent, which
+# writes dmx-pg@<instance id>.service.d/instance.conf with the binary, data paths, port, system
+# user and resource limits; this template holds everything that is the same for every instance.
+[Unit]
+Description=DatabaseMax customer PostgreSQL %i
+# Filesystems are (re)mounted by the agent before it reports ready.
+After=network.target dmx-host-agent.service
+Wants=dmx-host-agent.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+# Replaced by the drop-in.
+ExecStart=/bin/false
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStartSec=180
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=5
+# A backend killed by the OOM killer is handled by the postmaster (crash recovery); don't stop the unit.
+OOMPolicy=continue
+Slice=dmx-customers.slice
+RuntimeDirectory=dmx-pg/%i
+RuntimeDirectoryMode=0700
+UMask=0077
+LimitNOFILE=4096
+
+# --- sandbox: the instance sees only its own data, has no privileges and no outbound network ---
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# Hide every other instance's data, the backups and the platform's configuration; the drop-in
+# binds back this instance's own filesystems.
+TemporaryFileSystem=/var/lib/databasemax:ro
+InaccessiblePaths=-/etc/databasemax -/opt/databasemax -/var/lib/postgresql -/etc/postgresql
+# Inbound from the gateway, nothing outbound (the drop-in adds the gateway host on worker hosts).
+IPAddressDeny=any
+IPAddressAllow=localhost

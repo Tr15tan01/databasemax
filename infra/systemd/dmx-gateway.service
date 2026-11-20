@@ -1,0 +1,48 @@
+[Unit]
+Description=DatabaseMax PostgreSQL gateway (TLS, routing, connection limits)
+After=network-online.target dmx-internal-api.service
+Wants=network-online.target
+PartOf=databasemax.target
+
+[Service]
+Type=exec
+User=dmx-gw
+Group=dmx-gw
+WorkingDirectory=/opt/databasemax/apps/gateway
+EnvironmentFile=/etc/databasemax/env/gateway.env
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ExecStart=/opt/databasemax/apps/gateway/.venv/bin/python -m dmx_gateway.server
+# Re-reads the TLS certificate (acme.sh's reload command runs: systemctl reload dmx-gateway).
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=2
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=100%
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+
+[Install]
+WantedBy=databasemax.target

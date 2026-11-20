@@ -1,0 +1,49 @@
+# The only control-plane service that can change the data plane, and only through the host
+# agent's closed API (it is in the agent socket's group). Listens on loopback (or the host's
+# private address on worker hosts, firewalled to the control plane).
+[Unit]
+Description=DatabaseMax provisioner
+After=network-online.target dmx-host-agent.service
+Wants=network-online.target dmx-host-agent.service
+PartOf=databasemax.target
+
+[Service]
+Type=exec
+User=dmx-prov
+Group=dmx-prov
+WorkingDirectory=/opt/databasemax/apps/provisioner
+EnvironmentFile=/etc/databasemax/env/provisioner.env
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ExecStart=/opt/databasemax/apps/provisioner/.venv/bin/uvicorn dmx_provisioner.main:app --host ${DMX_PROVISIONER_LISTEN} --port 8090 --no-server-header
+Restart=always
+RestartSec=3
+MemoryMax=512M
+CPUQuota=100%
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/databasemax/provisioner /var/lib/databasemax/customer-backups
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+
+[Install]
+WantedBy=databasemax.target
